@@ -1,28 +1,25 @@
-package main
+package handler
 
 import (
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strconv"
 
-	_ "modernc.org/sqlite"
+	"context"
+
+	"github.com/aadityya4real/Task-manager/internal/storage"
+	"github.com/aadityya4real/Task-manager/internal/types"
+	"github.com/redis/go-redis/v9"
 )
 
-// Task struct
-type Task struct {
-	ID    int    `json:"id"`
-	Title string `json:"title"`
-	Done  bool   `json:"done"`
-}
+var ctx = context.Background()
 
-// Handler with DB
-func taskHandler(db *sql.DB) http.HandlerFunc {
+func TaskHandler(store *storage.Store, rdb *redis.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		// 🔹 POST → Create Task
 		if r.Method == "POST" {
-			var t Task
+			var t types.Task
 
 			err := json.NewDecoder(r.Body).Decode(&t)
 			if err != nil {
@@ -35,16 +32,12 @@ func taskHandler(db *sql.DB) http.HandlerFunc {
 				return
 			}
 
-			result, err := db.Exec(
-				"INSERT INTO tasks (title, done) VALUES (?, ?)",
-				t.Title, false,
-			)
+			id, err := store.InsertTask(t)
 			if err != nil {
 				http.Error(w, "Failed to insert", http.StatusInternalServerError)
 				return
 			}
 
-			id, _ := result.LastInsertId()
 			t.ID = int(id)
 			t.Done = false
 
@@ -54,23 +47,10 @@ func taskHandler(db *sql.DB) http.HandlerFunc {
 
 		// 🔹 GET → Get all tasks
 		if r.Method == "GET" {
-			rows, err := db.Query("SELECT id, title, done FROM tasks")
+			tasks, err := store.GetTasks()
 			if err != nil {
 				http.Error(w, "Failed to fetch", http.StatusInternalServerError)
 				return
-			}
-			defer rows.Close()
-
-			var tasks []Task
-
-			for rows.Next() {
-				var t Task
-				err := rows.Scan(&t.ID, &t.Title, &t.Done)
-				if err != nil {
-					http.Error(w, "Error reading data", http.StatusInternalServerError)
-					return
-				}
-				tasks = append(tasks, t)
 			}
 
 			json.NewEncoder(w).Encode(tasks)
@@ -91,17 +71,14 @@ func taskHandler(db *sql.DB) http.HandlerFunc {
 				return
 			}
 
-			var t Task
+			var t types.Task
 			err = json.NewDecoder(r.Body).Decode(&t)
 			if err != nil {
 				http.Error(w, "Invalid JSON", http.StatusBadRequest)
 				return
 			}
 
-			_, err = db.Exec(
-				"UPDATE tasks SET title = ?, done = ? WHERE id = ?",
-				t.Title, t.Done, id,
-			)
+			err = store.UpdateTask(id, t)
 			if err != nil {
 				http.Error(w, "Failed to update", http.StatusInternalServerError)
 				return
@@ -127,7 +104,7 @@ func taskHandler(db *sql.DB) http.HandlerFunc {
 				return
 			}
 
-			_, err = db.Exec("DELETE FROM tasks WHERE id = ?", id)
+			err = store.DeleteTask(id)
 			if err != nil {
 				http.Error(w, "Failed to delete", http.StatusInternalServerError)
 				return
@@ -141,36 +118,4 @@ func taskHandler(db *sql.DB) http.HandlerFunc {
 
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
-}
-
-func main() {
-
-	// 🔹 Connect DB
-	db, err := sql.Open("sqlite", "tasks.db")
-	if err != nil {
-		panic(err)
-	}
-
-	// 🔹 Create Table
-	_, err = db.Exec(`
-	CREATE TABLE IF NOT EXISTS tasks (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		title TEXT,
-		done BOOLEAN
-	)
-	`)
-	if err != nil {
-		panic(err)
-	}
-
-	// 🔹 Root route
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Task Manager API Running 🚀"))
-	})
-
-	// 🔹 Task route
-	http.HandleFunc("/task", taskHandler(db))
-
-	// 🔹 Start server
-	http.ListenAndServe(":8080", nil)
 }
