@@ -5,6 +5,7 @@ go 1.25.2
 require (
 	github.com/redis/go-redis/v9 v9.18.0
 	modernc.org/sqlite v1.48.2
+	github.com/golang-jwt/jwt/v5 v5.3.1
 )
 
 require (

@@ -7,6 +7,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/aadityya4real/Task-manager/internal/handler"
+	"github.com/aadityya4real/Task-manager/internal/middleware"
 	"github.com/aadityya4real/Task-manager/internal/storage"
 	"github.com/redis/go-redis/v9"
 )
@@ -30,6 +31,15 @@ func main() {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		username TEXT,
 		password TEXT
+
+
+CREATE TABLE IF NOT EXISTS tasks (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	title TEXT,
+	done BOOLEAN,
+	user_id INTEGER
+
+		//
 	);
 	`)
 	if err != nil {
@@ -50,7 +60,9 @@ func main() {
 	})
 
 	//Task routes
-	http.HandleFunc("/task", handler.TaskHandler(store, rdb))
+	http.HandleFunc("/task", middleware.AuthMiddleware(
+		handler.TaskHandler(store, rdb),
+	))
 
 	// Auth routes
 	http.HandleFunc("/signup", handler.AuthHandler(store))
