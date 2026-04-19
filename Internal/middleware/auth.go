@@ -42,20 +42,29 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// 🔥 Extract claims safely
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
-			http.Error(w, "Invalid token claims", http.StatusUnauthorized)
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return
 		}
 
+		// ✅ SAFE extraction
+		userIDFloat, ok := claims["user_id"].(float64)
+		if !ok {
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			return
+		}
+		userID := int(userIDFloat)
+
+		// 🔹 username extraction
 		username, ok := claims["username"].(string)
 		if !ok {
-			http.Error(w, "Invalid username in token", http.StatusUnauthorized)
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return
 		}
 
-		// 🔥 Store in context
-		ctx := context.WithValue(r.Context(), "username", username)
+		// ✅ store in context
+		ctx := context.WithValue(r.Context(), "user_id", userID)
+		ctx = context.WithValue(ctx, "username", username)
 
-		// 🔥 Pass updated request
-		next(w, r.WithContext(ctx))
+		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }

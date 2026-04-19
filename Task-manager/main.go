@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 
 	_ "modernc.org/sqlite"
@@ -12,60 +13,81 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// ✅ CORS FIX (important for frontend)
+func enableCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+
+		// ✅ handle preflight properly
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 
-	// 🔹 Connect SQLite DB
+	fmt.Println("🚀 SERVER STARTED")
+
+	// 🔹 DB connection
 	db, err := sql.Open("sqlite", "tasks.db")
 	if err != nil {
 		panic(err)
 	}
+	fmt.Println("✅ DB connected")
 
-	// 🔹 Create table if not exists
-	// Users table
+	// 🔹 Create tables
 	_, err = db.Exec(`
-CREATE TABLE IF NOT EXISTS users (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	username TEXT,
-	password TEXT
-)
-`)
+	CREATE TABLE IF NOT EXISTS users (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		username TEXT,
+		password TEXT
+	)
+	`)
 	if err != nil {
 		panic(err)
 	}
 
-	// Tasks table
 	_, err = db.Exec(`
-CREATE TABLE IF NOT EXISTS tasks (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	title TEXT,
-	done BOOLEAN,
-	user_id INTEGER
-)
-`)
+	CREATE TABLE IF NOT EXISTS tasks (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		title TEXT,
+		done BOOLEAN,
+		user_id INTEGER
+	)
+	`)
 	if err != nil {
 		panic(err)
 	}
 
-	// 🔹 Initialize Redis
+	// 🔹 Redis
 	rdb := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 	})
+	fmt.Println("✅ Redis initialized")
 
-	// 🔹 Create Store
+	// 🔹 Store
 	store := storage.New(db)
 
-	http.HandleFunc("/signup", handler.SignupHandler(store))
-	http.HandleFunc("/login", handler.LoginHandler(store))
+	// 🔥 ROUTER (VERY IMPORTANT)
+	mux := http.NewServeMux()
 
-	http.HandleFunc("/task", middleware.AuthMiddleware(
-		handler.TaskHandler(store, rdb),
-	))
+	fmt.Println("📌 Registering routes...")
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Task Manager API Running 🚀"))
-	})
-	// 🔹 Start server
-	err = http.ListenAndServe(":8080", nil)
+	mux.HandleFunc("/signup", handler.SignupHandler(store))
+	mux.HandleFunc("/login", handler.LoginHandler(store))
+	mux.HandleFunc("/tasks", middleware.AuthMiddleware(handler.TaskHandler(store, rdb)))
+
+	fmt.Println("🌍 Server running on http://localhost:8080")
+
+	// 🔥 START SERVER
+	err = http.ListenAndServe(":8080", enableCORS(mux))
 	if err != nil {
 		panic(err)
 	}

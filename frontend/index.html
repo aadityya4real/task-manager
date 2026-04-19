@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Task Manager</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <h1>Task Manager</h1>
+
+  <!-- 🔐 Auth Section -->
+  <div id="auth">
+    <input id="username" placeholder="Username">
+    <input id="password" type="password" placeholder="Password">
+    <br>
+    <button onclick="signup()">Signup</button>
+    <button onclick="login()">Login</button>
+  </div>
+
+  <!-- 📋 Task Section -->
+  <div id="app" style="display:none;">
+    <h2>My Tasks</h2>
+
+    <input id="taskInput" placeholder="New task">
+  <button type="button" onclick="addTask()">Add</button>
+    <ul id="taskList"></ul>
+
+    <button onclick="logout()">Logout</button>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

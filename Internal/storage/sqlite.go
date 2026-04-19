@@ -2,6 +2,7 @@ package storage
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/aadityya4real/Task-manager/internal/types"
 )
@@ -14,20 +15,20 @@ func New(db *sql.DB) *Store {
 	return &Store{DB: db}
 }
 
-func (s *Store) InsertTask(t types.Task, username string) (int64, error) {
+func (s *Store) InsertTask(t types.Task, userID int) (int64, error) {
 	result, err := s.DB.Exec(
-		"INSERT INTO tasks (title, done, user_id) VALUES (?, ?, (SELECT id FROM users WHERE username = ?))",
-		t.Title, false, username,
+		"INSERT INTO tasks (title, done, user_id) VALUES (?, ?, ?)",
+		t.Title, false, userID,
 	)
 	if err != nil {
 		return 0, err
 	}
 	return result.LastInsertId()
 }
-func (s *Store) GetTasks(username string) ([]types.Task, error) {
+func (s *Store) GetTasks(userID int) ([]types.Task, error) {
 	rows, err := s.DB.Query(
-		"SELECT id, title, done FROM tasks WHERE user_id = (SELECT id FROM users WHERE username = ?)",
-		username,
+		"SELECT id, title, done FROM tasks WHERE user_id = ?",
+		userID,
 	)
 	if err != nil {
 		return nil, err
@@ -43,15 +44,37 @@ func (s *Store) GetTasks(username string) ([]types.Task, error) {
 	return tasks, nil
 }
 
-func (s *Store) UpdateTask(id int, t types.Task) error {
-	_, err := s.DB.Exec(
-		"UPDATE tasks SET title = ?, done = ? WHERE id = ?",
-		t.Title, t.Done, id,
+func (s *Store) UpdateTask(id int, userID int, t types.Task) error {
+	result, err := s.DB.Exec(
+		"UPDATE tasks SET title = ?, done = ? WHERE id = ? AND user_id = ?",
+		t.Title, t.Done, id, userID,
 	)
-	return err
-}
 
-func (s *Store) DeleteTask(id int) error {
-	_, err := s.DB.Exec("DELETE FROM tasks WHERE id = ?", id)
-	return err
+	if err != nil {
+		return err
+	}
+
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("task not found or not owned by user")
+	}
+
+	return nil
+}
+func (s *Store) DeleteTask(id int, userID int) error {
+	result, err := s.DB.Exec(
+		"DELETE FROM tasks WHERE id = ? AND user_id = ?",
+		id, userID,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("task not found or not owned by user")
+	}
+
+	return nil
 }

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/aadityya4real/Task-manager/internal/storage"
@@ -12,7 +13,7 @@ import (
 // 🔹 SIGNUP
 func SignupHandler(store *storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
+		fmt.Println("SIGNUP API CALLED")
 		if r.Method != "POST" {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -72,7 +73,7 @@ func LoginHandler(store *storage.Store) http.HandlerFunc {
 			return
 		}
 
-		token, err := utils.GenerateToken(dbUser.Username)
+		token, err := utils.GenerateToken(dbUser.ID, dbUser.Username)
 		if err != nil {
 			http.Error(w, "Failed to generate token", http.StatusInternalServerError)
 			return

@@ -8,11 +8,14 @@ import (
 
 var secretKey = []byte("mysecretkey")
 
-func GenerateToken(username string) (string, error) {
-
+func GenerateToken(userID int, username string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id":  userID,
 		"username": username,
-		"exp":      time.Now().Add(time.Hour * 24).Unix(),
+		"exp":      time.Now().Add(24 * time.Hour).Unix(),
+
+		// small improvements (still simple)
+		"iat": time.Now().Unix(),
 	})
 
 	return token.SignedString(secretKey)

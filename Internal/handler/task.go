@@ -1,13 +1,12 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
-
-	"context"
 
 	"github.com/aadityya4real/Task-manager/internal/storage"
 	"github.com/aadityya4real/Task-manager/internal/types"
@@ -18,8 +17,8 @@ var ctx = context.Background()
 
 func TaskHandler(store *storage.Store, rdb *redis.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		username := r.Context().Value("username").(string)
-		key := "tasks:" + username
+		userID := r.Context().Value("user_id").(int)
+		key := fmt.Sprintf("tasks:%d", userID)
 
 		if r.Method == "POST" {
 			var t types.Task
@@ -35,7 +34,7 @@ func TaskHandler(store *storage.Store, rdb *redis.Client) http.HandlerFunc {
 				return
 			}
 
-			id, err := store.InsertTask(t, username)
+			id, err := store.InsertTask(t, userID)
 			if err != nil {
 				http.Error(w, "Failed to insert", http.StatusInternalServerError)
 				return
@@ -69,7 +68,7 @@ func TaskHandler(store *storage.Store, rdb *redis.Client) http.HandlerFunc {
 			}
 
 			// Fetch from DB
-			tasks, err := store.GetTasks(username)
+			tasks, err := store.GetTasks(userID)
 			if err != nil {
 				http.Error(w, "Failed to fetch", http.StatusInternalServerError)
 				return
@@ -112,7 +111,7 @@ func TaskHandler(store *storage.Store, rdb *redis.Client) http.HandlerFunc {
 				return
 			}
 
-			err = store.UpdateTask(id, t)
+			err = store.UpdateTask(id, userID, t)
 			if err != nil {
 				http.Error(w, "Failed to update", http.StatusInternalServerError)
 				return
@@ -142,7 +141,7 @@ func TaskHandler(store *storage.Store, rdb *redis.Client) http.HandlerFunc {
 				return
 			}
 
-			err = store.DeleteTask(id)
+			err = store.DeleteTask(id, userID)
 			if err != nil {
 				http.Error(w, "Failed to delete", http.StatusInternalServerError)
 				return
