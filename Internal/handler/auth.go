@@ -8,6 +8,7 @@ import (
 	"github.com/aadityya4real/Task-manager/internal/storage"
 	"github.com/aadityya4real/Task-manager/internal/types"
 	"github.com/aadityya4real/Task-manager/internal/utils"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // 🔹 SIGNUP
@@ -32,6 +33,16 @@ func SignupHandler(store *storage.Store) http.HandlerFunc {
 			return
 		}
 
+		// 🔐 Hash password
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password), bcrypt.DefaultCost)
+		if err != nil {
+			http.Error(w, "Error hashing password", http.StatusInternalServerError)
+			return
+		}
+
+		u.Password = string(hashedPassword)
+
+		// Save user
 		id, err := store.CreateUser(u)
 		if err != nil {
 			http.Error(w, "Failed to create user", http.StatusInternalServerError)
@@ -68,11 +79,11 @@ func LoginHandler(store *storage.Store) http.HandlerFunc {
 			return
 		}
 
-		if dbUser.Password != u.Password {
+		err = bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(u.Password))
+		if err != nil {
 			http.Error(w, "Invalid password", http.StatusUnauthorized)
 			return
 		}
-
 		token, err := utils.GenerateToken(dbUser.ID, dbUser.Username)
 		if err != nil {
 			http.Error(w, "Failed to generate token", http.StatusInternalServerError)
