@@ -1,4 +1,4 @@
-module github.com/aadityya4real/Task-manager
+module github.com/aadityya4real/Task-Manager
 
 go 1.25.2
 
