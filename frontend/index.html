@@ -2,32 +2,40 @@
 <html>
 <head>
   <title>Task Manager</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 
-  <h1>Task Manager</h1>
+<div class="container">
 
-  <!-- 🔐 Auth Section -->
-  <div id="auth">
-    <input id="username" placeholder="Username">
-    <input id="password" type="password" placeholder="Password">
-    <br>
-    <button onclick="signup()">Signup</button>
-    <button onclick="login()">Login</button>
+  <h1>🚀 Task Manager</h1>
+
+  <!-- AUTH -->
+  <div id="auth" class="card">
+    <input id="username" placeholder="Username" />
+    <input id="password" type="password" placeholder="Password" />
+
+    <div class="btn-group">
+      <button onclick="signup()">Signup</button>
+      <button onclick="login()">Login</button>
+    </div>
   </div>
 
-  <!-- 📋 Task Section -->
-  <div id="app" style="display:none;">
-    <h2>My Tasks</h2>
+  <!-- APP -->
+  <div id="app" class="card" style="display:none;">
 
-    <input id="taskInput" placeholder="New task">
-  <button type="button" onclick="addTask()">Add</button>
+    <div class="top-bar">
+      <input id="taskInput" placeholder="Enter task..." />
+      <button onclick="addTask()">Add</button>
+      <button class="logout" onclick="logout()">Logout</button>
+    </div>
+
     <ul id="taskList"></ul>
 
-    <button onclick="logout()">Logout</button>
   </div>
+
+</div>
+
 <script src="/static/script.js"></script>
-<link rel="stylesheet" href="/static/style.css">
 </body>
 </html>

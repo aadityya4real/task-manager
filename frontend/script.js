@@ -46,37 +46,37 @@ function login() {
 
 // 📥 LOAD TASKS
 function loadTasks() {
-  fetch(`${BASE_URL}/tasks`, {
+  fetch(API + "/tasks", {
     headers: {
       "Authorization": "Bearer " + localStorage.getItem("token")
     }
   })
   .then(res => res.json())
   .then(result => {
-    const tasks = result.data;
 
+    const tasks = result.data;
     const list = document.getElementById("taskList");
     list.innerHTML = "";
 
     tasks.forEach(task => {
       const li = document.createElement("li");
 
-  li.innerHTML = `
-  <input type="checkbox" 
-         ${task.done ? "checked" : ""} 
-         onchange="toggleTask(${task.id}, '${task.title}', this.checked)" />
+      li.innerHTML = `
+        <input type="checkbox" 
+          ${task.done ? "checked" : ""} 
+          onchange="toggleTask(${task.id}, '${task.title}', this.checked)" />
 
-  ${task.title}
+        <span class="${task.done ? 'done' : ''}">
+          ${task.title}
+        </span>
 
-  <button onclick="deleteTask(${task.id})">Delete</button>
-`;
+        <button onclick="deleteTask(${task.id})">❌</button>
+      `;
 
       list.appendChild(li);
     });
-  })
-  .catch(err => console.error("LOAD ERROR:", err));
+  });
 }
-
 // ➕ ADD TASK
 function addTask() {
   const title = document.getElementById("taskInput").value;
