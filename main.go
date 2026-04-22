@@ -69,15 +69,23 @@ func main() {
 	}
 
 	// 🔹 Redis
-	opt, err := redis.ParseURL(os.Getenv("REDIS_URL"))
-	if err != nil {
-		panic(err)
-	}
+	// 🔹 Redis setup (works for both local + deployment)
+	redisURL := os.Getenv("REDIS_URL")
 
-	rdb := redis.NewClient(opt)
-	// rdb := redis.NewClient(&redis.Options{
-	// 	Addr: "localhost:6379",
-	// })
+	var rdb *redis.Client
+
+	if redisURL != "" {
+		opt, err := redis.ParseURL(redisURL)
+		if err != nil {
+			panic(err)
+		}
+		rdb = redis.NewClient(opt)
+	} else {
+		// local fallback
+		rdb = redis.NewClient(&redis.Options{
+			Addr: "localhost:6379",
+		})
+	}
 	fmt.Println("✅ Redis initialized")
 
 	// 🔹 Store
