@@ -8,9 +8,9 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"task-manager/internal/handler"
-	"task-manager/internal/middleware"
-	"task-manager/internal/storage"
+	"github.com/aadityya4real/task-manager/internal/handler"
+	"github.com/aadityya4real/task-manager/internal/middleware"
+	"github.com/aadityya4real/task-manager/internal/storage"
 
 	"github.com/redis/go-redis/v9"
 )
