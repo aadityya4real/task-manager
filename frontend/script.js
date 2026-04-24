@@ -6,7 +6,7 @@ function signup() {
   const password = document.getElementById("password").value.trim();
 
   if (!username || !password) {
-    alert("Please enter username & password");
+    alert("Enter username & password");
     return;
   }
 
@@ -16,7 +16,8 @@ function signup() {
     body: JSON.stringify({ username, password })
   })
   .then(res => res.json())
-  .then(() => {
+  .then(data => {
+    console.log("Signup:", data);
     alert("Signup successful ✅");
   })
   .catch(err => console.error("Signup error:", err));
@@ -24,8 +25,13 @@ function signup() {
 
 // 🔐 LOGIN
 function login() {
-  const username = document.getElementById("username").value;
-  const password = document.getElementById("password").value;
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value.trim();
+
+  if (!username || !password) {
+    alert("Enter username & password");
+    return;
+  }
 
   fetch(`${BASE_URL}/login`, {
     method: "POST",
@@ -36,12 +42,15 @@ function login() {
   .then(data => {
     console.log("LOGIN RESPONSE:", data);
 
-    if (!data.token) {
+    // 🔥 IMPORTANT: adjust this based on your backend
+    const token = data.token || data.access_token || data.jwt;
+
+    if (!token) {
       alert("Login failed ❌");
       return;
     }
 
-    localStorage.setItem("token", data.token);
+    localStorage.setItem("token", token);
 
     document.getElementById("auth").style.display = "none";
     document.getElementById("app").style.display = "block";
@@ -73,9 +82,9 @@ function loadTasks() {
       li.innerHTML = `
         <input type="checkbox" 
           ${task.done ? "checked" : ""} 
-          onchange="toggleTask(${task.id}, '${task.title.replace(/'/g, "\\'")}', this.checked)" />
+          onchange="toggleTask(${task.id}, \`${task.title}\`, this.checked)" />
 
-        <span class="${task.done ? 'done' : ''}">
+        <span style="flex:1; text-align:left; ${task.done ? 'text-decoration: line-through;' : ''}">
           ${task.title}
         </span>
 
@@ -94,11 +103,9 @@ function addTask() {
   const title = input.value.trim();
 
   if (!title) {
-    alert("Task cannot be empty ❌");
+    alert("Task cannot be empty");
     return;
   }
-
-  console.log("Adding:", title);
 
   fetch(`${BASE_URL}/tasks`, {
     method: "POST",
@@ -110,9 +117,9 @@ function addTask() {
   })
   .then(res => res.json())
   .then(data => {
-    console.log("ADD RESPONSE:", data);
-    input.value = "";        // ✅ clear input
-    loadTasks();             // ✅ reload list
+    console.log("ADD:", data);
+    input.value = "";
+    loadTasks();
   })
   .catch(err => console.error("ADD ERROR:", err));
 }
@@ -141,26 +148,6 @@ function toggleTask(id, title, done) {
   })
   .then(() => loadTasks())
   .catch(err => console.error("TOGGLE ERROR:", err));
-}
-
-// ✏️ EDIT TASK
-function editTask(id, oldTitle) {
-  const newTitle = prompt("Edit task:", oldTitle);
-  if (!newTitle) return;
-
-  fetch(`${BASE_URL}/tasks?id=${id}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + localStorage.getItem("token")
-    },
-    body: JSON.stringify({
-      title: newTitle,
-      done: false
-    })
-  })
-  .then(() => loadTasks())
-  .catch(err => console.error("EDIT ERROR:", err));
 }
 
 // 🚪 LOGOUT
