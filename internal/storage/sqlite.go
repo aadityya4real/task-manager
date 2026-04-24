@@ -18,11 +18,15 @@ func New(db *sql.DB) *Store {
 func (s *Store) InsertTask(t types.Task, userID int) (int64, error) {
 	result, err := s.DB.Exec(
 		"INSERT INTO tasks (title, done, user_id) VALUES (?, ?, ?)",
-		t.Title, false, userID,
+		t.Title,
+		false,
+		userID,
 	)
+
 	if err != nil {
 		return 0, err
 	}
+
 	return result.LastInsertId()
 }
 func (s *Store) GetTasks(userID int, limit, offset int) ([]types.Task, error) {

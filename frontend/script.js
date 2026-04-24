@@ -115,13 +115,25 @@ function addTask() {
     },
     body: JSON.stringify({ title })
   })
-  .then(res => res.json())
+  .then(async (res) => {
+    const text = await res.text();   // 🔥 read raw response first
+    console.log("RAW RESPONSE:", text);
+
+    try {
+      return JSON.parse(text);       // try parse
+    } catch {
+      throw new Error(text);         // show actual backend error
+    }
+  })
   .then(data => {
-    console.log("ADD:", data);
+    console.log("ADD SUCCESS:", data);
     input.value = "";
     loadTasks();
   })
-  .catch(err => console.error("ADD ERROR:", err));
+  .catch(err => {
+    console.error("ADD ERROR:", err);
+    alert("Error: " + err.message);
+  });
 }
 
 // ❌ DELETE TASK
