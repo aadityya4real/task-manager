@@ -2,9 +2,11 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
+	"log"
 	"net/http"
+	"strings"
 
+	"github.com/aadityya4real/task-manager/internal/middleware"
 	"github.com/aadityya4real/task-manager/internal/storage"
 	"github.com/aadityya4real/task-manager/internal/types"
 	"github.com/aadityya4real/task-manager/internal/utils"
@@ -12,10 +14,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// 🔹 SIGNUP
+// SignupHandler handles user registration
 func SignupHandler(store *storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("SIGNUP API CALLED")
 		if r.Method != "POST" {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -29,15 +30,26 @@ func SignupHandler(store *storage.Store) http.HandlerFunc {
 			return
 		}
 
+		// Sanitize input
+		u.Username = middleware.SanitizeString(u.Username)
+		u.Password = middleware.SanitizeString(u.Password)
+
+		// Validate input
 		if u.Username == "" || u.Password == "" {
 			http.Error(w, "Username and password required", http.StatusBadRequest)
 			return
 		}
 
-		// 🔐 Hash password
+		if len(u.Password) < 8 {
+			http.Error(w, "Password must be at least 8 characters", http.StatusBadRequest)
+			return
+		}
+
+		// Hash password
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password), bcrypt.DefaultCost)
 		if err != nil {
-			http.Error(w, "Error hashing password", http.StatusInternalServerError)
+			log.Printf("Error hashing password: %v", err)
+			http.Error(w, "Error processing request", http.StatusInternalServerError)
 			return
 		}
 
@@ -46,21 +58,30 @@ func SignupHandler(store *storage.Store) http.HandlerFunc {
 		// Save user
 		id, err := store.CreateUser(u)
 		if err != nil {
+			if strings.Contains(err.Error(), "already exists") {
+				http.Error(w, err.Error(), http.StatusConflict)
+				return
+			}
+			log.Printf("Error creating user: %v", err)
 			http.Error(w, "Failed to create user", http.StatusInternalServerError)
 			return
 		}
 
 		u.ID = int(id)
+		u.Password = "" // Don't send password back
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(u)
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message": "User created successfully",
+			"user":    u,
+		})
 	}
 }
 
-// 🔹 LOGIN
+// LoginHandler handles user authentication
 func LoginHandler(store *storage.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
 		if r.Method != "POST" {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -74,19 +95,32 @@ func LoginHandler(store *storage.Store) http.HandlerFunc {
 			return
 		}
 
+		// Sanitize input
+		u.Username = middleware.SanitizeString(u.Username)
+		u.Password = middleware.SanitizeString(u.Password)
+
+		if u.Username == "" || u.Password == "" {
+			http.Error(w, "Username and password required", http.StatusBadRequest)
+			return
+		}
+
 		dbUser, err := store.GetUser(u.Username)
 		if err != nil {
-			http.Error(w, "User not found", http.StatusUnauthorized)
+			// Generic error message to prevent username enumeration
+			http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 			return
 		}
 
 		err = bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(u.Password))
 		if err != nil {
-			http.Error(w, "Invalid password", http.StatusUnauthorized)
+			// Generic error message to prevent username enumeration
+			http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 			return
 		}
+
 		token, err := utils.GenerateToken(dbUser.ID, dbUser.Username)
 		if err != nil {
+			log.Printf("Error generating token: %v", err)
 			http.Error(w, "Failed to generate token", http.StatusInternalServerError)
 			return
 		}

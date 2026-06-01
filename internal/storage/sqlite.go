@@ -44,8 +44,14 @@ func (s *Store) GetTasks(userID int, limit, offset int) ([]types.Task, error) {
 
 	for rows.Next() {
 		var t types.Task
-		rows.Scan(&t.ID, &t.Title, &t.Done)
+		if err := rows.Scan(&t.ID, &t.Title, &t.Done); err != nil {
+			return nil, fmt.Errorf("error scanning task: %w", err)
+		}
 		tasks = append(tasks, t)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating tasks: %w", err)
 	}
 
 	return tasks, nil

@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/aadityya4real/task-manager/internal/middleware"
 	"github.com/aadityya4real/task-manager/internal/storage"
 	"github.com/aadityya4real/task-manager/internal/types"
 
@@ -28,12 +31,12 @@ func invalidateUserCache(ctx context.Context, rdb *redis.Client, userID int) {
 	for {
 		keys, nextCursor, err := rdb.Scan(ctx, cursor, pattern, 100).Result()
 		if err != nil {
-			fmt.Println("⚠️ REDIS SCAN ERROR:", err)
+			log.Printf("⚠️ REDIS SCAN ERROR: %v", err)
 			return
 		}
 		if len(keys) > 0 {
 			if err := rdb.Del(ctx, keys...).Err(); err != nil {
-				fmt.Println("⚠️ REDIS DEL ERROR:", err)
+				log.Printf("⚠️ REDIS DEL ERROR: %v", err)
 			}
 		}
 		cursor = nextCursor
@@ -42,7 +45,7 @@ func invalidateUserCache(ctx context.Context, rdb *redis.Client, userID int) {
 		}
 	}
 
-	fmt.Println("🧹 CACHE CLEARED for user:", userID)
+	log.Printf("🧹 CACHE CLEARED for user: %d", userID)
 }
 
 func TaskHandler(store *storage.Store, rdb *redis.Client) http.HandlerFunc {
@@ -70,30 +73,40 @@ func TaskHandler(store *storage.Store, rdb *redis.Client) http.HandlerFunc {
 				return
 			}
 
+			// Sanitize and validate input
+			t.Title = middleware.SanitizeString(t.Title)
+
 			if t.Title == "" {
 				http.Error(w, "Title is required", http.StatusBadRequest)
 				return
 			}
 
+			if len(t.Title) > 500 {
+				http.Error(w, "Title must be less than 500 characters", http.StatusBadRequest)
+				return
+			}
+
 			id, err := store.InsertTask(t, userID)
 			if err != nil {
+				log.Printf("Error inserting task: %v", err)
 				http.Error(w, "Failed to insert", http.StatusInternalServerError)
 				return
 			}
 
-			// FIX 3: Invalidate all paginated cache keys for this user.
+			// Invalidate all paginated cache keys for this user
 			invalidateUserCache(ctx, rdb, userID)
 
 			t.ID = int(id)
 			t.Done = false
 
 			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"message": "Task created successfully",
 				"data":    t,
 			})
 
-			fmt.Println("POST /tasks | user:", userID)
+			log.Printf("POST /tasks | user: %d | task: %s", userID, t.Title)
 			return
 
 		// ─── GET → Fetch Tasks (with Redis + Pagination) ──────────────────────
@@ -120,7 +133,7 @@ func TaskHandler(store *storage.Store, rdb *redis.Client) http.HandlerFunc {
 			// Try Redis cache first.
 			data, err := rdb.Get(ctx, key).Result()
 			if err == nil {
-				fmt.Println("⚡ CACHE HIT for user:", userID, "| limit:", limit, "| offset:", offset)
+				log.Printf("⚡ CACHE HIT for user: %d | limit: %d | offset: %d", userID, limit, offset)
 				w.Header().Set("Content-Type", "application/json")
 				w.Write([]byte(data))
 				return
@@ -128,9 +141,9 @@ func TaskHandler(store *storage.Store, rdb *redis.Client) http.HandlerFunc {
 
 			if err != redis.Nil {
 				// Non-nil error means Redis itself is having issues; log and fall through.
-				fmt.Println("⚠️ REDIS ERROR:", err)
+				log.Printf("⚠️ REDIS ERROR: %v", err)
 			} else {
-				fmt.Println("❌ CACHE MISS for user:", userID, "| limit:", limit, "| offset:", offset)
+				log.Printf("❌ CACHE MISS for user: %d | limit: %d | offset: %d", userID, limit, offset)
 			}
 
 			// Fetch from DB on cache miss.
@@ -154,13 +167,13 @@ func TaskHandler(store *storage.Store, rdb *redis.Client) http.HandlerFunc {
 
 			// Populate cache for this specific page.
 			if err := rdb.Set(ctx, key, jsonData, 5*time.Minute).Err(); err != nil {
-				fmt.Println("⚠️ REDIS SET ERROR:", err)
+				log.Printf("⚠️ REDIS SET ERROR: %v", err)
 			}
 
 			w.Header().Set("Content-Type", "application/json")
 			w.Write(jsonData)
 
-			fmt.Println("GET /tasks | user:", userID, "| limit:", limit, "| offset:", offset)
+			log.Printf("GET /tasks | user: %d | limit: %d | offset: %d", userID, limit, offset)
 			return
 		// ─── PUT → Update Task ────────────────────────────────────────────────
 		case http.MethodPut:
@@ -183,14 +196,32 @@ func TaskHandler(store *storage.Store, rdb *redis.Client) http.HandlerFunc {
 				return
 			}
 
-			// NOTE: Ensure store.UpdateTask uses WHERE id = ? AND user_id = ?
-			// to prevent a user from updating another user's task.
+			// Sanitize and validate input
+			t.Title = middleware.SanitizeString(t.Title)
+
+			if t.Title == "" {
+				http.Error(w, "Title is required", http.StatusBadRequest)
+				return
+			}
+
+			if len(t.Title) > 500 {
+				http.Error(w, "Title must be less than 500 characters", http.StatusBadRequest)
+				return
+			}
+
+			// Ensure store.UpdateTask uses WHERE id = ? AND user_id = ?
+			// to prevent a user from updating another user's task
 			if err := store.UpdateTask(id, userID, t); err != nil {
+				if strings.Contains(err.Error(), "not found") {
+					http.Error(w, err.Error(), http.StatusNotFound)
+					return
+				}
+				log.Printf("Error updating task: %v", err)
 				http.Error(w, "Failed to update", http.StatusInternalServerError)
 				return
 			}
 
-			// FIX 5: Invalidate all paginated cache keys for this user.
+			// Invalidate all paginated cache keys for this user
 			invalidateUserCache(ctx, rdb, userID)
 
 			w.Header().Set("Content-Type", "application/json")
@@ -198,7 +229,7 @@ func TaskHandler(store *storage.Store, rdb *redis.Client) http.HandlerFunc {
 				"message": "Task updated successfully",
 			})
 
-			fmt.Println("PUT /tasks | user:", userID, "| task ID:", id)
+			log.Printf("PUT /tasks | user: %d | task ID: %d", userID, id)
 
 		// ─── DELETE → Delete Task ─────────────────────────────────────────────
 		case http.MethodDelete:
@@ -215,14 +246,19 @@ func TaskHandler(store *storage.Store, rdb *redis.Client) http.HandlerFunc {
 				return
 			}
 
-			// NOTE: Ensure store.DeleteTask uses WHERE id = ? AND user_id = ?
-			// to prevent a user from deleting another user's task.
+			// Ensure store.DeleteTask uses WHERE id = ? AND user_id = ?
+			// to prevent a user from deleting another user's task
 			if err := store.DeleteTask(id, userID); err != nil {
+				if strings.Contains(err.Error(), "not found") {
+					http.Error(w, err.Error(), http.StatusNotFound)
+					return
+				}
+				log.Printf("Error deleting task: %v", err)
 				http.Error(w, "Failed to delete", http.StatusInternalServerError)
 				return
 			}
 
-			// FIX 5: Invalidate all paginated cache keys for this user.
+			// Invalidate all paginated cache keys for this user
 			invalidateUserCache(ctx, rdb, userID)
 
 			w.Header().Set("Content-Type", "application/json")
@@ -230,7 +266,7 @@ func TaskHandler(store *storage.Store, rdb *redis.Client) http.HandlerFunc {
 				"message": "Task deleted successfully",
 			})
 
-			fmt.Println("DELETE /tasks | user:", userID, "| task ID:", id)
+			log.Printf("DELETE /tasks | user: %d | task ID: %d", userID, id)
 
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
