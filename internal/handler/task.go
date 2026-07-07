@@ -37,6 +37,8 @@ func invalidateUserCache(ctx context.Context, rdb *redis.Client, userID int) {
 		if len(keys) > 0 {
 			if err := rdb.Del(ctx, keys...).Err(); err != nil {
 				log.Printf("⚠️ REDIS DEL ERROR: %v", err)
+			} else {
+				log.Printf("🗑 CACHE INVALIDATED for user: %d (%d keys)", userID, len(keys))
 			}
 		}
 		cursor = nextCursor
@@ -166,10 +168,11 @@ func TaskHandler(store *storage.Store, rdb *redis.Client) http.HandlerFunc {
 			}
 
 			// Populate cache for this specific page.
-			if err := rdb.Set(ctx, key, jsonData, 5*time.Minute).Err(); err != nil {
+			if err := rdb.Set(ctx, key, jsonData, 5*time.Minute).Err(); err == nil {
+				log.Printf("💾 CACHE SAVED for user: %d", userID)
+			} else {
 				log.Printf("⚠️ REDIS SET ERROR: %v", err)
 			}
-
 			w.Header().Set("Content-Type", "application/json")
 			w.Write(jsonData)
 

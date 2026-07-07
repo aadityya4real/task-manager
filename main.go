@@ -47,6 +47,7 @@ func main() {
 
 	// Redis setup
 	var rdb *redis.Client
+
 	redisURL := os.Getenv("REDIS_URL")
 
 	if redisURL != "" {
@@ -54,21 +55,24 @@ func main() {
 		if err != nil {
 			log.Fatalf("❌ Failed to parse Redis URL: %v", err)
 		}
+
 		rdb = redis.NewClient(opt)
+
 	} else {
+
+		addr := "localhost:6379"
+
+		if env := os.Getenv("REDIS_ADDR"); env != "" {
+			addr = env
+		}
+
 		rdb = redis.NewClient(&redis.Options{
-			Addr:         "localhost:6379",
-			Password:     "",
-			DB:           0,
-			DialTimeout:  5 * time.Second,
-			ReadTimeout:  3 * time.Second,
-			WriteTimeout: 3 * time.Second,
+			Addr: addr,
 		})
 	}
-
 	// Test Redis connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	rdb.Ping(ctx)
 
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		log.Printf("⚠️ Redis connection failed: %v (caching will be disabled)", err)
